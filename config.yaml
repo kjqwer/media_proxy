@@ -1,0 +1,3 @@
+port: 8080
+base_route: "/media"
+media_path: "./media" 
