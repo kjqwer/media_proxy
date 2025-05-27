@@ -176,7 +176,3 @@ media_path: "./media"   # 媒体文件扫描目录
 ## 许可证
 
 MIT License
-
-## 贡献
-
-欢迎提交Issue和Pull Request来改进这个项目。 
