@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v2"
@@ -126,16 +127,58 @@ func (ms *MediaServer) SetupRoutes() *gin.Engine {
 
 	// 添加CORS中间件
 	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Range")
+		origin := c.Request.Header.Get("Origin")
+		method := c.Request.Method
+		path := c.Request.URL.Path
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
+		// 设置CORS头 - 必须在所有请求中设置
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Range, Authorization, X-Requested-With, Cache-Control")
+		c.Header("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, Content-Type")
+		c.Header("Access-Control-Allow-Credentials", "false")
+		c.Header("Access-Control-Max-Age", "86400") // 24小时预检缓存
+
+		// 记录所有请求
+		log.Printf("收到请求 - Method: %s, Path: %s, Origin: %s", method, path, origin)
+
+		// 处理预检请求
+		if method == "OPTIONS" {
+			log.Printf("处理OPTIONS预检请求: %s, Origin: %s", path, origin)
+			// 确保预检请求返回正确的状态码和头
+			c.Header("Content-Length", "0")
+			c.Status(http.StatusNoContent)
+			c.Abort()
 			return
 		}
 
+		// 记录跨域请求日志
+		if origin != "" {
+			log.Printf("CORS请求 - Origin: %s, Method: %s, Path: %s", origin, method, path)
+		}
+
 		c.Next()
+	})
+
+	// 添加请求日志中间件
+	r.Use(func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		duration := time.Since(start)
+
+		// 记录请求日志
+		log.Printf("请求处理完成 - %s %s - 状态:%d - 耗时:%v - IP:%s",
+			c.Request.Method, c.Request.URL.Path, c.Writer.Status(), duration, c.ClientIP())
+	})
+
+	// 添加健康检查端点
+	r.GET("/health", func(c *gin.Context) {
+		log.Printf("健康检查请求")
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"server": "media-proxy",
+			"time":   time.Now().Format(time.RFC3339),
+		})
 	})
 
 	// 使用一个统一的处理器来处理所有媒体相关请求
